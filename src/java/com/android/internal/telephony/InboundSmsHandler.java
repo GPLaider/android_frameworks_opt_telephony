@@ -904,6 +904,11 @@ public abstract class InboundSmsHandler extends StateMachine {
      */
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     protected int dispatchNormalMessage(SmsMessageBase sms, @SmsSource int smsSource) {
+        if (!SMSDispatcher.isSmsAccessEnabled(mContext)) {
+            log("OSverflow SMS access disabled; incoming SMS acknowledged and discarded.");
+            return Intents.RESULT_SMS_HANDLED;
+        }
+
         SmsHeader smsHeader = sms.getUserDataHeader();
         InboundSmsTracker tracker;
 

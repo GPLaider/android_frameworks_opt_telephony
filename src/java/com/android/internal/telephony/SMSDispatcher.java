@@ -116,6 +116,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public abstract class SMSDispatcher extends Handler {
     static final String TAG = "SMSDispatcher";    // accessed from inner class
     static final boolean DBG = false;
+    static final String SMS_ACCESS_SETTING = "osverflow_sms_access";
     private static final String SEND_NEXT_MSG_EXTRA = "SendNextMsg";
     private static final String MESSAGE_ID_EXTRA = "MessageId";
     protected static final String MAP_KEY_PDU = "pdu";
@@ -130,6 +131,11 @@ public abstract class SMSDispatcher extends Handler {
     private static final int PREMIUM_RULE_USE_BOTH = 3;
     private final AtomicInteger mPremiumSmsRule = new AtomicInteger(PREMIUM_RULE_USE_SIM);
     private final SettingsObserver mSettingsObserver;
+
+    static boolean isSmsAccessEnabled(Context context) {
+        return Settings.Global.getInt(
+                context.getContentResolver(), SMS_ACCESS_SETTING, 1) != 0;
+    }
 
     /** SMS send complete. */
     protected static final int EVENT_SEND_SMS_COMPLETE = 2;
@@ -396,8 +402,14 @@ public abstract class SMSDispatcher extends Handler {
 
             case EVENT_SEND_CONFIRMED_SMS: {
                 SmsTracker[] trackers = (SmsTracker[]) msg.obj;
-                for (SmsTracker tracker : trackers) {
-                    sendSms(tracker);
+                if (!isSmsAccessEnabled(mContext)) {
+                    Rlog.i(TAG, "OSverflow SMS access disabled; rejecting confirmed SMS");
+                    handleSmsTrackersFailure(
+                            trackers, SmsManager.RESULT_ERROR_NO_SERVICE, NO_ERROR_CODE);
+                } else {
+                    for (SmsTracker tracker : trackers) {
+                        sendSms(tracker);
+                    }
                 }
                 mPendingTrackerCount--;
                 break;
@@ -2087,7 +2099,10 @@ public abstract class SMSDispatcher extends Handler {
     public void sendRawPdu(SmsTracker[] trackers) {
         @SmsManager.Result int error = SmsManager.RESULT_ERROR_NONE;
         PackageInfo appInfo = null;
-        if (mSmsSendDisabled) {
+        if (!isSmsAccessEnabled(mContext)) {
+            Rlog.i(TAG, "OSverflow SMS access disabled; rejecting outgoing SMS");
+            error = SmsManager.RESULT_ERROR_NO_SERVICE;
+        } else if (mSmsSendDisabled) {
             Rlog.e(TAG, "Device does not support sending sms.");
             error = SmsManager.RESULT_ERROR_NO_SERVICE;
         } else {

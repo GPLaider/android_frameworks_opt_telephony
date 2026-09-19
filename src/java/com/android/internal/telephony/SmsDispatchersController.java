@@ -872,6 +872,14 @@ public class SmsDispatchersController extends Handler {
      * @param retryUsingImsService a flag to indicate whether the retry SMS can use the ImsService
      */
     public void sendRetrySms(SMSDispatcher.SmsTracker tracker, boolean retryUsingImsService) {
+        if (!SMSDispatcher.isSmsAccessEnabled(mContext)) {
+            Rlog.i(TAG, "OSverflow SMS access disabled; rejecting SMS retry");
+            tracker.onFailed(mContext, SmsManager.RESULT_ERROR_NO_SERVICE, NO_ERROR_CODE);
+            notifySmsSent(tracker, !retryUsingImsService,
+                    true /* isLastSmsPart */, false /* success */);
+            return;
+        }
+
         String oldFormat = tracker.mFormat;
         // If retryUsingImsService is true, newFormat will be IMS SMS format. Otherwise, newFormat
         // will be based on voice technology.
